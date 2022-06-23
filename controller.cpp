@@ -57,6 +57,38 @@ float sign(float num){
     else return -1;
 }
 
+void resetController(){
+    xW_des_acc_prev = 0;
+    dxW_des_acc_prev = 0;
+    xW_prev_odom = 0;
+    yPos_prev = 0;
+    xPos_prev = 0;
+    z_prev = 0;
+    theta_lWheel_p = 0;
+    theta_rWheel_p = 0;
+    t_prev = 0;
+    t_offset = 0;
+    dxW_des_prev = 0;
+    xW_des_prev = 0;
+    dYaw_des_prev = 0;
+    yaw_des_prev = 0;
+    xW = 0;
+    thetaWheelPrev = 0;
+    memset(prev_raw_angle, 0, sizeof(prev_raw_angle));
+    memset(wrapped_angle, 0, sizeof(wrapped_angle));
+    memset(angleOffset, 0, sizeof(angleOffset));
+    yaw_wheel_prev = 0;
+    Lpf_dyaw_wheels = 0;
+    pitchEst = 0;
+    pitch_vel = 0;
+    IMU_pitch_prev = 0;
+    Lpf_pitch = 0;
+    timeCompleted = 0;
+
+    loop_count = 0;
+    i_rec = 0;
+}
+
 
 
 void update(float* from_robo, float* to_robo, float t_sec) {
@@ -127,6 +159,10 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     float dIMU_yaw = from_robo[19];
     float IMU_roll = from_robo[20];
     float dIMU_roll = from_robo[21];
+
+    float reset = from_robo[22];
+
+    if(reset > 0) resetController();
 
     // ************************************************ ANGLE ZEROING************************************//
     float angleExp[4];
@@ -830,4 +866,38 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     to_robo[4] = tau_wheel;
     to_robo[5] = tau_rHip;
     to_robo[6] = tau_lHip;
+
+    //to_robo indexes 7-10
+    memcpy(to_robo+7, x_R, sizeof(float)*4);
+
+    //to_robo indexes 11-14
+    memcpy(to_robo+11, z_R, sizeof(float)*4);
+
+    //to_robo indexes 15-16
+    memcpy(to_robo+15, target_box_x, sizeof(float)*2);
+
+    //to_robo indexes 17-18
+    memcpy(to_robo+17, target_box_y, sizeof(float)*2);
+
+    //to_robo indexes 19-20
+    memcpy(to_robo+19, upperLine_x, sizeof(float)*2);
+
+    //to_robo indexes 21-22
+    memcpy(to_robo+21, upperLine_y, sizeof(float)*2);
+
+    //to_robo indexes 23-24
+    memcpy(to_robo+23, lowerLine_x, sizeof(float)*2);
+
+    //to_robo indexes 25-26
+    memcpy(to_robo+25, lowerLine_y, sizeof(float)*2);
+
+    to_robo[27] = *xPos;
+    to_robo[28] = *yPos;
+
+
+    printf("to_robo:");
+        for(int i=27; i<29; i++){
+            printf(" %f", to_robo[i]);
+        } 
+    printf("\n");
 }

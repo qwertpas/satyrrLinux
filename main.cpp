@@ -22,8 +22,8 @@ const char* IP_THIS = "192.168.1.103";
 const int PORT_READ = 54003;
 const int PORT_SEND = 54005;
 
-const int LEN_READ = 24; //number of floats read from labview
-const int LEN_SEND = 7; //number of floats sent to labview
+const int LEN_READ = 23; //number of floats read from labview
+const int LEN_SEND = 29; //number of floats sent to labview
 
 const int buffersize = 1024; //buffer for reading udp
 
@@ -64,7 +64,7 @@ int udp_listen(){
 	server_addr.sin_addr.s_addr = inet_addr(IP_THIS);
 	
 	bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr));
-	printf("bound to port %i \n", ntohs(server_addr.sin_port));
+	printf("listener bound to port %i \n", ntohs(server_addr.sin_port));
 	
 	while(1){
 	
@@ -82,17 +82,17 @@ int udp_listen(){
 
 
 		unsigned char sum = checksum(client_message, (LEN_READ*4)+1);
-        sum = 0;
+        //sum = 0;
 		if(sum == 0){
 
-			printf("from_robo:");
-			for(int i=0; i<LEN_READ; i++){
-				printf(" %f", from_robo[i]);
-			} 
-			printf("\n");
+			// printf("from_robo:");
+			// for(int i=0; i<LEN_READ; i++){
+			// 	printf(" %f", from_robo[i]);
+			// } 
+			// printf("\n");
 
 			// Mutex makes sure no one reads client_arr when this is writing
-			lock_guard<mutex> guard(from_robo_mutex);
+			// lock_guard<mutex> guard(from_robo_mutex);
 			memcpy(&from_robo, &client_message, sizeof(from_robo));
 		}
 		else{
@@ -149,11 +149,6 @@ int main(){
 	
 		//Controller Call (important)
 		update(from_robo, to_robo, 0);
-
-        // cout << "3: " << from_robo[3] << endl;
-        // cout << "4: " << from_robo[4] << endl;
-
-        
 
 
 		//Copy data from float array to a char array, each float takes 4 bytes. Last byte is a checksum
