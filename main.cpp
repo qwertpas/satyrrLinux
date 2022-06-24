@@ -12,6 +12,10 @@
 #include <mutex>
 #include <math.h>
 #include <byteswap.h>
+#include <time.h>
+#include <sys/time.h>
+#include <chrono>
+
 
 #include "controller.cpp"
 
@@ -22,8 +26,8 @@ const char* IP_THIS = "192.168.1.103";
 const int PORT_READ = 54003;
 const int PORT_SEND = 54005;
 
-const int LEN_READ = 23; //number of floats read from labview
-const int LEN_SEND = 29; //number of floats sent to labview
+const int LEN_READ = 24; //number of floats read from labview
+const int LEN_SEND = 30; //number of floats sent to labview
 
 const int buffersize = 1024; //buffer for reading udp
 
@@ -36,6 +40,19 @@ float from_robo[LEN_READ];
 
 //thread protection for from_robo since one thread writes and other reads
 mutex from_robo_mutex;
+
+
+// ostringstream print_stream;
+
+// void print_thread(){
+// 	while(1){
+// 		this_thread::sleep_for(chrono::milliseconds(50));
+//		string print_str = print_stream.str();
+// 		cout << print_str << endl;
+// 	}
+// }
+
+
 
 unsigned char checksum(unsigned char *ptr, int num_chars){
 	unsigned char chk = 0;
@@ -65,8 +82,15 @@ int udp_listen(){
 	
 	bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr));
 	printf("listener bound to port %i \n", ntohs(server_addr.sin_port));
+
+
+	int count = 0;
 	
 	while(1){
+
+		// struct timeval start;
+		// gettimeofday(&start, nullptr);
+
 	
 		//fill recieving buffer with NULL 
 		memset(client_message, '\0', buffersize);
@@ -82,7 +106,7 @@ int udp_listen(){
 
 
 		unsigned char sum = checksum(client_message, (LEN_READ*4)+1);
-        //sum = 0;
+        sum = 0;
 		if(sum == 0){
 
 			// printf("from_robo:");
@@ -92,12 +116,23 @@ int udp_listen(){
 			// printf("\n");
 
 			// Mutex makes sure no one reads client_arr when this is writing
-			// lock_guard<mutex> guard(from_robo_mutex);
+			lock_guard<mutex> guard(from_robo_mutex);
 			memcpy(&from_robo, &client_message, sizeof(from_robo));
 		}
 		else{
 			printf("checksum detected errors, sum = %x \n", sum);
 		}
+
+
+		// struct timeval end;
+		// gettimeofday(&end, nullptr);
+
+		// int diff_us = (end.tv_sec - start.tv_sec)*1e6 + (end.tv_usec - start.tv_usec);
+
+		// if(count % 1000 == 0){
+		// 	// printf("listen time: %i \n", diff_us);
+		// }
+		// count++;
 
 	}
 	
@@ -121,6 +156,9 @@ vector<float> controller(vector<float> input){
 int main(){
 	cout.precision(10);
 
+	//start print thread
+	// thread print_thread(print);
+
 	//start read socket on 54003
 	thread udp_thread(udp_listen);
 	
@@ -135,13 +173,20 @@ int main(){
 	inet_aton(IP_ROBOT, &s_other_send.sin_addr);
 
 	// **** INPUT: [ motor_torques[4], tau_wheel[1], tau_hips[2], animations[16] ] **//
-	float to_robo[LEN_SEND] = {1, 2.7, 3.14, 2, 3, 4, 5};
+	float to_robo[LEN_SEND] = {1};
+
+
+	int count = 0;
 
 	while(1){
 
 
+		// struct timeval start;
+		// gettimeofday(&start, nullptr);
 
-		this_thread::sleep_for(chrono::microseconds(225));
+
+
+		// this_thread::sleep_for(chrono::microseconds(50));
 	
 		//Sending recieve back 
 		// vector<float> input = client_arr;
@@ -149,12 +194,13 @@ int main(){
 	
 		//Controller Call (important)
 		update(from_robo, to_robo, 0);
+		// memcpy(to_robo, from_robo, LEN_SEND*4);
 
 
 		//Copy data from float array to a char array, each float takes 4 bytes. Last byte is a checksum
 		unsigned char send_char[LEN_SEND*4 + 1];
 		memcpy(send_char, to_robo, LEN_SEND*4);
-		send_char[LEN_SEND*4] = checksum(send_char, LEN_SEND*4);
+		// send_char[LEN_SEND*4] = checksum(send_char, LEN_SEND*4);
 		
 
 		//Send char array over socket 
@@ -171,6 +217,17 @@ int main(){
 		// printf("checksum: %x \n", checksum(send_char, LEN_SEND*4 + 1));
 		//printf("%x, %x, %x, %x\r\n",send_char[8],send_char[9],send_char[10],send_char[11]);
 		//printf("%d\r\n", sizeof(send_char));
+
+
+		// struct timeval end;
+		// gettimeofday(&end, nullptr);
+
+		// int diff_us = (end.tv_sec - start.tv_sec)*1e6 + (end.tv_usec - start.tv_usec);
+
+		// if(count % 1000 == 0){
+		// 	// printf("controller usec: %i \n", diff_us);
+		// }
+		// count++;
 
 	}	
 	

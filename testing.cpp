@@ -3,32 +3,31 @@
 #include <stdio.h>
 #include <thread>
 #include <chrono>
+#include <time.h>
 
 
 using namespace std;
 
 
-
-struct timeval get_millis(){
-    struct timeval tv;
-    gettimeofday(&tv, nullptr);
-    return tv;
-}
-
 int main(){
-    long int sec = get_millis().tv_sec * 1e6;
-    long int usec = get_millis().tv_usec;
-    long int usec_total = sec + usec;
-    float sec_total = usec_total * 1e-6;
-    cout << sec_total << endl;
+
+
+    // //elasped time
+    // struct timeval start;
+    // gettimeofday(&start, nullptr);
+    // this_thread::sleep_for(chrono::microseconds(20000));
+
+    // struct timeval end;
+    // gettimeofday(&end, nullptr);
+
+    // struct timeval diff;
+    // timersub(&end, &start, &diff);
+    // // int diff_us = (end.tv_sec - start.tv_sec)*1e6 + (end.tv_usec - start.tv_usec);
+
+    // printf("diff_us: %i\n", diff.tv_usec);
 
 
 
-    this_thread::sleep_for(chrono::milliseconds(2000));
-
-    long int sec2 = get_millis().tv_sec * 1e6;
-    long int usec2 = get_millis().tv_usec;
-    long int usec_total2 = sec2 + usec2;
-    float sec_total2 = usec_total2 * 1e-6;
-    cout << sec_total2 << endl;
+    //gpio
+    
 }

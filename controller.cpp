@@ -37,8 +37,16 @@ float IMU_pitch_prev;
 float Lpf_pitch;
 float timeCompleted;
 
+float motor1 = 0;
+float motor2 = 0;
+float motor8 = 0;
+float motor9 = 0;
+
 int loop_count = 0;
 int i_rec = 0;
+
+float time_check = 0;
+struct timeval start;
 
 
 // struct{
@@ -85,8 +93,16 @@ void resetController(){
     Lpf_pitch = 0;
     timeCompleted = 0;
 
+
+    motor1 = 0;
+    motor2 = 0;
+    motor8 = 0;
+    motor9 = 0;
+
     loop_count = 0;
     i_rec = 0;
+
+    time_check = 0;
 }
 
 
@@ -97,8 +113,10 @@ void update(float* from_robo, float* to_robo, float t_sec) {
 
 
     // ************************************************ SYSTEM PARAMETERS*******************************//
-    float TAU_MIN = -17;
-    float TAU_MAX = 17;
+    // float TAU_MIN = -17;
+    // float TAU_MAX = 17;
+    float TAU_MIN = -9;
+    float TAU_MAX = 9;
     float PI_ = 3.14159;
     float R_wheel = .06;
     int RLEG = 0;
@@ -114,7 +132,7 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     float P_MAX_V1 = 12.5663706144;
     float V_MAX_V1 = 30;
 
-    float dt = 250 / 1000000; // Approximate dt and fix for filter
+    float dt = 250 / 1000000.; // Approximate dt and fix for filter
 
     float hmi_deltaXArr[2] = {0, 0};
     float hmi_deltaYawRaw = 0;
@@ -125,10 +143,7 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     float tau_rHip = 0;
     float tau_wheel = 0;
 
-    float motor1 = 0;
-    float motor2 = 0;
-    float motor8 = 0;
-    float motor9 = 0;
+
 
     //replace ???
     t_sec = loop_count * dt;
@@ -153,6 +168,7 @@ void update(float* from_robo, float* to_robo, float t_sec) {
         actual_vel_angles[i] = from_robo[i+12];
     }
 
+
     float IMU_pitch = from_robo[16];
     float dIMU_pitch = from_robo[17];
     float IMU_yaw = from_robo[18];
@@ -163,6 +179,19 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     float reset = from_robo[22];
 
     if(reset > 0) resetController();
+
+    
+    if(from_robo[23] != time_check){
+        struct timeval end;
+        gettimeofday(&end, nullptr);
+
+        int diff_us = (end.tv_sec - start.tv_sec)*1e6 + (end.tv_usec - start.tv_usec);
+        // printf("diff_us: %i %f \n", diff_us, time_check);
+
+        gettimeofday(&start, nullptr);
+    }
+    time_check = from_robo[23];
+    
 
     // ************************************************ ANGLE ZEROING************************************//
     float angleExp[4];
@@ -222,6 +251,13 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     float dtheta_rHip = -actual_vel_angles[1];
     float dtheta_lHip = actual_vel_angles[2]; // Flipping angles so they match convention of right leg
     float dtheta_lWheel = -actual_vel_angles[3];
+
+    
+    // printf("actual_vel_angles:");
+    //     for(int i=0; i<4; i++){
+    //         printf(" %f", actual_vel_angles[i]);
+    //     } 
+    // printf("\n");
 
     // Computed vel from position (UNUSED)
     // float dtheta_rWheel = (theta_rWheel - theta_rWheel_p) / ((t_ms - t_ms_prev)/1000);
@@ -662,6 +698,26 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     tau_wheel_R = tau_wheel_R + K_db * sign(dIMU_pitch_rad);
     tau_wheel_L = tau_wheel_L + K_db * sign(dIMU_pitch_rad);
 
+
+    // ************************************************ JOINT LEVEL CONTROLLER *******************************//
+    float thetaDes = acos(z_filt / (2 * L_leg)); // about 26.12 deg
+
+    float Kp_r = 100;
+    float Kp_l = 100;
+    float Kd_r = 1;
+    float Kd_l = 1;
+
+    // Feedforward gravity compensation
+    float J_rleg = 2 * L_leg * sin(theta_rHip);
+    float J_lleg = 2 * L_leg * sin(theta_lHip);
+    float tau_rGrav = J_rleg * (mR * g / 2);
+    float tau_lGrav = J_lleg * (mR * g / 2);
+    float tau_rJoint = Kp_r * ((theta_rHip)-thetaDes) + Kd_r * ((dtheta_rHip)-0);
+    float tau_lJoint = Kp_l * ((theta_lHip)-thetaDes) + Kd_l * ((dtheta_lHip)-0);
+
+    tau_rHip = tau_rJoint + tau_rGrav;
+    tau_lHip = tau_lJoint + tau_lGrav;
+
     // ************************************************ ODOM RECONSTRUCTION ****************************//
     float lowerBound = -.75;
     float upperBound = .75;
@@ -792,24 +848,7 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     // stateVec[10] = tau_wheel_L;
     // stateVec[11] = Lpf_pitch;
 
-    // ************************************************ JOINT LEVEL CONTROLLER *******************************//
-    float thetaDes = acos(z_filt / (2 * L_leg)); // about 26.12 deg
 
-    float Kp_r = 100;
-    float Kp_l = 100;
-    float Kd_r = 1;
-    float Kd_l = 1;
-
-    // Feedforward gravity compensation
-    float J_rleg = 2 * L_leg * sin(theta_rHip);
-    float J_lleg = 2 * L_leg * sin(theta_lHip);
-    float tau_rGrav = J_rleg * (mR * g / 2);
-    float tau_lGrav = J_lleg * (mR * g / 2);
-    float tau_rJoint = Kp_r * ((theta_rHip)-thetaDes) + Kd_r * ((dtheta_rHip)-0);
-    float tau_lJoint = Kp_l * ((theta_lHip)-thetaDes) + Kd_l * ((dtheta_lHip)-0);
-
-    tau_rHip = tau_rJoint + tau_rGrav;
-    tau_lHip = tau_lJoint + tau_lGrav;
 
     // ************************************************ APPLY TORQUES *******************************//
     // Motor Order: 2 ->8 -> 9 -> 1
@@ -848,6 +887,11 @@ void update(float* from_robo, float* to_robo, float t_sec) {
         motor8 = rampGain * tau_rHip;
         motor9 = -rampGain * tau_lHip;         // Flip signs to go back to left leg convention
         motor1 = -rampGainWheel * tau_wheel_L; // Flip signed to go back to left lef convention
+        // motor2 = 1;
+        // motor8 = 2;
+        // motor9 = 2;
+        // motor1 = 1;
+
     }
 
     if ((ESTOP == 1) || (startControl == 0))
@@ -894,10 +938,25 @@ void update(float* from_robo, float* to_robo, float t_sec) {
     to_robo[27] = *xPos;
     to_robo[28] = *yPos;
 
+    to_robo[29] = time_check;
 
-    printf("to_robo:");
-        for(int i=27; i<29; i++){
-            printf(" %f", to_robo[i]);
-        } 
-    printf("\n");
+    // printf("timecheck: %f \n", time_check);
+
+    //memcpy(to_robo, from_robo, 4*24);
+
+
+    // if(loop_count % 1000 == 0){
+    //     printf("from_robo:");
+    //         for(int i=0; i<23; i++){
+    //             printf(" %f", from_robo[i]);
+    //         } 
+    //     printf("\n");
+
+    //     printf("to_robo:");
+    //         for(int i=0; i<29; i++){
+    //             printf(" %f", to_robo[i]);
+    //         } 
+    //     printf("\n");
+    //     printf("\n");
+    // }
 }
